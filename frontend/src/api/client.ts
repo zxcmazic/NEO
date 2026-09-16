@@ -15,7 +15,7 @@ export async function apiRequest<T = any>(path: string, options: RequestInit = {
   const res = await fetch(`${API_BASE}${path}`, {
     ...options,
     headers: {
-      "Content-Type": "application/json",
+      ...(options.body ? { "Content-Type": "application/json" } : {}),
       "X-Telegram-Init-Data": getInitData(),
       ...options.headers,
     },
