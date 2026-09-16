@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { api } from "../api/client";
 import { useUserStore } from "../store/useUserStore";
 import { BalanceBar } from "../components/BalanceBar";
-import { useT } from "../i18n";
+import { useT, type Key } from "../i18n";
 
 type RankCode = "ROOKIE" | "PLAYER" | "PRO" | "SHARK" | "TYCOON" | "LEGEND";
 
@@ -121,7 +121,7 @@ export function Profile() {
           {achievements.map((a) => (
             <div key={a.code} style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 13 }}>{t(`achievements.code.${a.code}`)}</div>
+               <div style={{ fontSize: 13 }}>{t(`achievements.code.${a.code}` as Key)}</div>
                 <div style={{ height: 5, background: "var(--bg)", borderRadius: 3, marginTop: 4, overflow: "hidden" }}>
                   <div
                     style={{
