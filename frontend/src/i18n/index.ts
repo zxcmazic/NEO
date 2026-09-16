@@ -8,7 +8,7 @@ import en from "./en.json";
 const dictionaries = { ru, en } as const;
 
 export type Locale = keyof typeof dictionaries;
-type Key = keyof typeof ru;
+export type Key = keyof typeof ru;
 
 interface LocaleStore {
   locale: Locale;
