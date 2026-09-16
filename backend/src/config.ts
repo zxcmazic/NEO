@@ -53,7 +53,7 @@ export const config = {
     // ADMIN_JWT_SECRET подписывает токены сессии админа (отдельно от
     // Telegram initData — админ логинится логином/паролем, не через Telegram).
     jwtSecret: process.env.ADMIN_JWT_SECRET ?? "",
-    jwtExpiresIn: "12h",
+    jwtExpiresIn: "12h" as const,
     // Bootstrap-логика (см. seed.ts): при первом запуске seed создаёт ОДНОГО
     // superadmin-пользователя из этих переменных, если такого логина ещё нет
     // в БД. После первого запуска значения можно (и стоит) сменить/убрать —
