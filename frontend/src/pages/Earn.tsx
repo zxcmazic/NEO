@@ -9,8 +9,8 @@ import { sfx } from "../lib/sound";
 // TODO: заменить на реальные blockId из личного кабинета partner.adsgram.ai —
 // один блок под "монеты", один под "бонус-сундук" (раздел 2.1 ТЗ: два разных
 // рекламных юнита с разной частотой).
-const COIN_BLOCK_ID = "COIN_REWARD_BLOCK_ID";
-const CHEST_BLOCK_ID = "BONUS_CHEST_BLOCK_ID";
+const COIN_BLOCK_ID = "48273";
+const CHEST_BLOCK_ID = "48274";
 
 function generateImpressionId(): string {
   // Клиентский идентификатор показа для идемпотентности на backend.
