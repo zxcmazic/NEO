@@ -25,6 +25,7 @@ export default function App() {
   const [page, setPage] = useState<Page>("lobby");
   const load = useUserStore((s) => s.load);
   const loaded = useUserStore((s) => s.loaded);
+  const loadError = useUserStore((s) => s.error);
   const t = useT();
   const locale = useLocaleStore((s) => s.locale);
   const setLocale = useLocaleStore((s) => s.setLocale);
@@ -35,7 +36,19 @@ export default function App() {
     load();
   }, [load]);
 
-  if (!loaded) {
+  if (loadError) {
+    return (
+      <div style={{ padding: 40, textAlign: "center", color: "var(--text-secondary)" }}>
+        Ошибка загрузки: {loadError}
+        <br />
+        <button onClick={() => location.reload()} style={{ marginTop: 16 }}>
+          Обновить
+        </button>
+      </div>
+    );
+  }
+
+  if (!loaded) {{
     return <div style={{ padding: 40, textAlign: "center", color: "var(--text-secondary)" }}>{t("common.loading")}</div>;
   }
 
