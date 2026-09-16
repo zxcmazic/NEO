@@ -7,7 +7,7 @@ import { BalanceBar } from "../components/BalanceBar";
 import { useT } from "../i18n";
 import { sfx } from "../lib/sound";
 
-const WHEEL_AD_BLOCK_ID = "WHEEL_BONUS_SPIN_BLOCK_ID"; // TODO: реальный blockId из partner.adsgram.ai
+const WHEEL_AD_BLOCK_ID = "48275"; // TODO: реальный blockId из partner.adsgram.ai
 
 export function GameWheel() {
   const t = useT();
