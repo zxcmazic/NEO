@@ -113,7 +113,7 @@ export function GameSlots() {
         setPayout(res.payout);
         setBalance(res.balance);
         setSpinning(false);
-        if (res.payout > 0) (res.reels.every((r) => r === "jackpot") ? sfx.bigWin() : sfx.win());
+        if (res.payout > 0) (res.reels.every((r: string) => r === "jackpot") ? sfx.bigWin() : sfx.win());
       }, maxDelay + 50);
     } catch (err) {
       setError((err as Error).message);
