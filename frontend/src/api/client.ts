@@ -102,3 +102,5 @@ export const api = {
   createVipInvoice: (tier: string) => apiRequest(`/shop/vip/${tier}/invoice`, { method: "POST" }),
   createCosmeticInvoice: (id: string) => apiRequest(`/shop/cosmetics/${id}/invoice`, { method: "POST" }),
 };
+
+
