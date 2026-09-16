@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { prisma } from "../../db/prisma.js";
 
 export async function writeAdminLog(
@@ -10,7 +11,7 @@ export async function writeAdminLog(
       adminId,
       action,
       targetUserId: opts?.targetUserId,
-      meta: opts?.meta,
+      meta: opts?.meta === undefined ? Prisma.JsonNull : (opts.meta as Prisma.InputJsonValue),
     },
   });
 }
