@@ -1,0 +1,350 @@
+// NEO MERZ — схема БД (фундамент + Слоты/Кости/Мины/Рулетка/Колесо/Краш/
+// Блэкджек/Покер + Этап 4: рефералы/лидерборды/ачивки + Этап 5: турниры +
+// Stars Payments (VIP-подписка/косметика) + админ-панель).
+// (см. docs/ARCHITECTURE.md — там полная целевая схема из ТЗ, раздел 4)
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum VipTier {
+  NONE
+  BRONZE
+  SILVER
+  GOLD
+  PLATINUM
+  DIAMOND
+}
+
+enum TransactionType {
+  DAILY
+  AD_REWARD
+  BET
+  WIN
+  BONUS
+  REFERRAL
+  ADMIN_ADJUST
+  TOURNAMENT_PRIZE
+  STARS_PURCHASE
+}
+
+enum GameType {
+  SLOTS
+  DICE
+  MINES
+  ROULETTE
+  WHEEL
+  BLACKJACK
+  POKER
+  CRASH
+}
+
+enum AdUnit {
+  COIN_REWARD
+  BONUS_CHEST
+}
+
+model User {
+  id                    String    @id @default(uuid())
+  telegramId            BigInt    @unique
+  username              String?
+  firstName             String?
+  balance               Int       @default(0)
+  xp                    Int       @default(0)
+  level                 Int       @default(1)
+  vipTier               VipTier   @default(NONE)
+  vipExpiresAt          DateTime?
+  streakDays            Int       @default(0)
+  lastDailyAt           DateTime?
+  refBy                 String?
+  isBanned              Boolean   @default(false)
+  leaderboardAnonymous  Boolean   @default(false) // раздел 1.7 ТЗ: приватность лидерборда
+  createdAt             DateTime  @default(now())
+
+  transactions      Transaction[]
+  gameSessions      GameSession[]
+  adViews           AdView[]
+  achievementClaims AchievementClaim[]
+  tournamentScores  TournamentScore[]
+  cosmetics         UserCosmetic[]
+  starsPayments     StarsPayment[]
+
+  @@index([telegramId])
+}
+
+model Transaction {
+  id        String          @id @default(uuid())
+  userId    String
+  user      User            @relation(fields: [userId], references: [id])
+  type      TransactionType
+  amount    Int // положительное — приход, отрицательное — списание
+  game      String?
+  meta      Json?
+  createdAt DateTime        @default(now())
+
+  @@index([userId, createdAt])
+}
+
+model GameSession {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  gameType    GameType
+  betAmount   Int
+  result      Json
+  payout      Int
+  winRateUsed Float
+  createdAt   DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([gameType, createdAt])
+}
+
+model AdView {
+  id                  String   @id @default(uuid())
+  userId              String
+  user                User     @relation(fields: [userId], references: [id])
+  adUnit              AdUnit
+  adsgramImpressionId String   @unique // защита от повторного зачёта одного показа
+  rewardGranted       Boolean  @default(false)
+  // Раздел 6 ТЗ: "антифрод-доводка рекламных наград". Простая эвристика
+  // скорости (см. lib/antifraud.ts) — не блокирует награду (ложные
+  // срабатывания у реального игрока не должны портить UX), а помечает для
+  // ручного разбора в админке (раздел «Антифрод»).
+  suspicious          Boolean  @default(false)
+  createdAt           DateTime @default(now())
+
+  @@index([userId, adUnit, createdAt])
+  @@index([suspicious, createdAt])
+}
+
+model GameConfig {
+  gameType    GameType @id
+  winRate     Float // параметр баланса прогрессии, не "честность выплат" (валюта не реальная)
+  minBet      Int
+  maxBet      Int
+  isEnabled   Boolean  @default(true)
+  extraParams Json?
+}
+
+// Раздел 1.6 ТЗ: разовые ачивки / дейлики / недельные квесты.
+// Определения (код, цель, награда) сейчас живут статически в коде
+// (achievementsService.ts), а не в БД — тут только факт выдачи награды,
+// чтобы нельзя было заклеймить одну и ту же ачивку/период дважды.
+model AchievementClaim {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  code      String // например "first_bet", "daily_spins_20"
+  periodKey String // "all" для разовых, дата/ISO-неделя для дейликов/квестов
+  claimedAt DateTime @default(now())
+
+  @@unique([userId, code, periodKey])
+  @@index([userId])
+}
+
+// ======================= Этап 5: Турниры =======================
+
+enum TournamentMetric {
+  TOTAL_WIN // сумма выигрышей (Transaction type=WIN) за окно турнира
+  TOTAL_WAGERED // сумма ставок (GameSession.betAmount) за окно турнира
+  TOTAL_SPINS // количество раундов (GameSession) за окно турнира
+}
+
+enum TournamentStatus {
+  SCHEDULED
+  ACTIVE
+  FINISHED
+  CANCELLED
+}
+
+// Раздел 1.5 ТЗ: лидерборд по метрике за ограниченное окно времени, призовой
+// пул — фиксированный набор коинов от проекта (реальных денег в призах нет).
+// Пока ACTIVE — счёт считается "на лету" агрегацией по Transaction/GameSession
+// (тот же приём, что и в leaderboardService для еженедельного лидерборда), без
+// отдельной записи на каждую ставку. TournamentScore заполняется только один
+// раз — при финализации (снэпшот финального результата + выплаченный приз).
+model Tournament {
+  id          String           @id @default(uuid())
+  title       String
+  description String?
+  metricType  TournamentMetric
+  startAt     DateTime
+  endAt       DateTime
+  status      TournamentStatus @default(SCHEDULED)
+  vipOnly     Boolean          @default(false) // раздел 1.2 ТЗ: доступ к VIP-турнирам — часть VIP-тира
+  prizePool   Json // [{ rank: 1, coins: 5000 }, { rank: 2, coins: 2000 }, ...] — раздел 1.5 ТЗ
+  createdAt   DateTime         @default(now())
+  finishedAt  DateTime?
+
+  scores TournamentScore[]
+
+  @@index([status, startAt])
+}
+
+model TournamentScore {
+  id             String     @id @default(uuid())
+  tournamentId   String
+  tournament     Tournament @relation(fields: [tournamentId], references: [id])
+  userId         String
+  user           User       @relation(fields: [userId], references: [id])
+  score          Int
+  rank           Int
+  prizeAmount    Int        @default(0)
+  prizeClaimedAt DateTime? // выплата начисляется автоматически при финализации, поле — для аудита
+
+  @@unique([tournamentId, userId])
+  @@index([tournamentId, rank])
+}
+
+// ======================= Этап 5: Косметика (каталог) =======================
+// Сама покупка за Stars (Bot Payments API) — следующий шаг после этого этапа
+// (см. README "Что НЕ входит"); здесь уже есть каталог и таблица владения,
+// чтобы админка могла управлять ассортиментом/ценами уже сейчас.
+
+enum CosmeticType {
+  SLOT_SKIN
+  TABLE_SKIN
+  AVATAR_FRAME
+  WIN_EFFECT
+}
+
+model CosmeticItem {
+  id            String       @id @default(uuid())
+  name          String
+  type          CosmeticType
+  priceStars    Int
+  previewAsset  String? // URL/путь до превью
+  isActive      Boolean      @default(true)
+  createdAt     DateTime     @default(now())
+
+  owners UserCosmetic[]
+  starsPayments StarsPayment[]
+}
+
+model UserCosmetic {
+  id           String       @id @default(uuid())
+  userId       String
+  user         User         @relation(fields: [userId], references: [id])
+  cosmeticId   String
+  cosmetic     CosmeticItem @relation(fields: [cosmeticId], references: [id])
+  purchasedAt  DateTime     @default(now())
+
+  @@unique([userId, cosmeticId])
+  @@index([cosmeticId])
+}
+
+// ======================= Этап 5: Stars Payments (VIP + косметика) =======================
+// Раздел 2.2 ТЗ: "Telegram Stars используются ТОЛЬКО для косметики и
+// VIP-подписки" — принципиально не влияют на баланс/шансы (не "pay to win").
+// Сам платёж идёт через Telegram Bot Payments API (createInvoiceLink на
+// backend → openInvoice на клиенте → pre_checkout_query/successful_payment
+// на бота, см. bot/src/payments.ts). StarsPayment — источник истины для
+// идемпотентности: telegramPaymentChargeId уникален, поэтому даже повторная
+// доставка successful_payment (Telegram может ретраить) не выдаст товар дважды.
+
+enum StarsPaymentType {
+  VIP_SUBSCRIPTION
+  COSMETIC
+}
+
+enum StarsPaymentStatus {
+  PENDING // инвойс создан, оплата ещё не подтверждена
+  COMPLETED
+  FAILED // pre_checkout отклонён (например, товар уже не актуален)
+}
+
+model StarsPayment {
+  id                      String             @id @default(uuid())
+  userId                  String
+  user                    User               @relation(fields: [userId], references: [id])
+  type                    StarsPaymentType
+  vipTier                 VipTier? // заполнено для type=VIP_SUBSCRIPTION
+  cosmeticId              String? // заполнено для type=COSMETIC
+  cosmetic                CosmeticItem?      @relation(fields: [cosmeticId], references: [id])
+  starsAmount             Int
+  status                  StarsPaymentStatus @default(PENDING)
+  telegramPaymentChargeId String?            @unique // приходит только в successful_payment — ключ идемпотентности
+  createdAt               DateTime           @default(now())
+  completedAt             DateTime?
+
+  @@index([userId, status])
+}
+
+// ======================= Этап 5/6: Рекламные лимиты из админки =======================
+// Раздел 5 ТЗ: "Настройка рекламных лимитов... без деплоя, прямо из панели".
+// Singleton-таблица (единственная строка id="singleton"); backend/src/config.ts
+// остаётся источником значений ПО УМОЛЧАНИЮ при первом посеве (см. seed.ts).
+model AdSettings {
+  id                       String   @id @default("singleton")
+  coinRewardDailyLimit     Int
+  coinRewardAmount         Int
+  bonusChestCooldownHours  Int
+  updatedAt                DateTime @updatedAt
+}
+
+// ======================= Этап 5/6: Рассылки =======================
+
+enum BroadcastStatus {
+  DRAFT
+  SCHEDULED
+  SENT
+  CANCELLED
+}
+
+// Раздел 5 ТЗ: "Рассылки (broadcast): сегментация по VIP-тиру/активности/
+// языку, отложенная отправка, статистика доставки." Backend только хранит
+// рассылку и считает целевой сегмент; фактическую отправку делает bot-слой
+// (см. bot/src/broadcastSender.ts) — он читает эту же таблицу поллингом,
+// так же, как notifyDailyBonus.ts уже делает для дневного бонуса.
+model Broadcast {
+  id          String          @id @default(uuid())
+  text        String
+  segment     Json // { vipTiers?: VipTier[], language?: string, activeSinceDays?: number }
+  status      BroadcastStatus @default(DRAFT)
+  scheduledAt DateTime? // null + status=DRAFT — ещё не поставлена в очередь
+  sentCount   Int             @default(0)
+  createdBy   String
+  createdAt   DateTime        @default(now())
+  sentAt      DateTime?
+}
+
+// ======================= Этап 6: Админ-панель =======================
+
+enum AdminRole {
+  SUPERADMIN // всё, включая шансы игр (game_configs)
+  FINANCE // Stars-продажи, статистика дохода, БЕЗ доступа к шансам игр
+  MODERATOR // баны, рассылки, БЕЗ доступа к экономике/шансам
+}
+
+model AdminUser {
+  id           String    @id @default(uuid())
+  login        String    @unique
+  passwordHash String
+  role         AdminRole
+  isActive     Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  lastLoginAt  DateTime?
+
+  logs AdminLog[]
+}
+
+// Раздел 5 ТЗ: "Настройка шансов выигрыша... с логированием изменений" +
+// "Логи действий админов" — единая таблица под оба требования.
+model AdminLog {
+  id           String    @id @default(uuid())
+  adminId      String
+  admin        AdminUser @relation(fields: [adminId], references: [id])
+  action       String // "game_config.update", "user.ban", "tournament.finalize", ...
+  targetUserId String?
+  meta         Json?
+  createdAt    DateTime  @default(now())
+
+  @@index([adminId, createdAt])
+  @@index([action, createdAt])
+}

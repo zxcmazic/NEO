@@ -1,0 +1,68 @@
+:root {
+  --bg: #0b0e14;
+  --surface: #151a24;
+  --accent-primary: #00f0ff;
+  --accent-win: #39ff88;
+  --accent-risk: #ff2e6c;
+  --accent-vip: #ffb020;
+  --text-primary: #e9eef5;
+  --text-secondary: #7c8798;
+
+  --font-ui: "Inter", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", "Roboto Mono", monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.numeric {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.glow-primary {
+  box-shadow: 0 0 12px 0 color-mix(in srgb, var(--accent-primary) 55%, transparent);
+}
+
+.glow-win {
+  box-shadow: 0 0 12px 0 color-mix(in srgb, var(--accent-win) 55%, transparent);
+}
+
+.card {
+  background: var(--surface);
+  border-radius: 16px;
+  border: 1px solid color-mix(in srgb, var(--accent-primary) 15%, transparent);
+}
+
+.btn {
+  border: none;
+  border-radius: 12px;
+  padding: 12px 20px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.1s ease, box-shadow 0.2s ease;
+}
+
+.btn:active {
+  transform: scale(0.97);
+}
+
+.btn-primary {
+  background: var(--accent-primary);
+  color: var(--bg);
+}
+
+.btn-risk {
+  background: transparent;
+  color: var(--accent-risk);
+  border: 1px solid var(--accent-risk);
+}
