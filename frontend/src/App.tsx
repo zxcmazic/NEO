@@ -48,7 +48,7 @@ export default function App() {
     );
   }
 
-  if (!loaded) {{
+  if (!loaded) {
     return <div style={{ padding: 40, textAlign: "center", color: "var(--text-secondary)" }}>{t("common.loading")}</div>;
   }
 
