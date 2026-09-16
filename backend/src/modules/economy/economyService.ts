@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { prisma } from "../../db/prisma.js";
 import { config } from "../../config.js";
 import type { TransactionType } from "@prisma/client";
@@ -38,7 +39,13 @@ export async function applyBalanceChange(
     const updated = await tx.user.update({ where: { id: userId }, data });
 
     await tx.transaction.create({
-      data: { userId, amount, type, game, meta },
+      data: {
+        userId,
+        amount,
+        type,
+        game,
+        meta: meta === undefined ? Prisma.JsonNull : (meta as Prisma.InputJsonValue),
+      },
     });
 
     return updated;
